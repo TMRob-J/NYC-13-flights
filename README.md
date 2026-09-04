@@ -19,3 +19,8 @@ This exploratory data analysis (EDA) provided multiple directions for further an
 
 ![Average departure delay by origin airport](output/figures/delay_by_origin.png)
 ![Average departure delay by Scheduled Hour](output/figures/delay_by_hour.png)
+
+## Reproduce the Analysis
+Install the required R packages and render the Quarto analysis file. 
+
+install.packages(c("DBI", "RSQLite", "nycflights13", "magrittr", "ggplot2")
