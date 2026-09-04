@@ -1,4 +1,4 @@
-# NYC-flights
+# NYC Flight Departure Delay Analysis
 ## Research Question: 
 What factors are associated with departure delays for flights departing from New York City airports in 2013?
 ## Data source: 
@@ -10,7 +10,7 @@ This exploratory data analysis (EDA) provided multiple directions for further an
 - Average departure delays differ between EWR, LGA and JFK. This indicates independently investigating the cause of delays at each airport is a useful next step.
 - Departure delays appear to vary by month, with June and July having the highest average delays.
 - Departure hour appears to be associated with delay, with flights departing around 8pm having the highest average delays while flights leaving early in the morning the lowest.
-- No unadjusted weather phenomenon, including precipitation and visibility, appear to have a strong association with departure delays. 
+- No unadjusted weather condition, including precipitation and visibility, appear to have a strong association with departure delays. 
 ## Limitations:
 - This analysis is solely descriptive. It does not test statistical significance or establish causation. 
 - Data from all three airports are being analyzed together. Future analysis could analyze them separately or include origin airport as a predictor in a statistical model.
@@ -23,4 +23,6 @@ This exploratory data analysis (EDA) provided multiple directions for further an
 ## Reproduce the Analysis
 Install the required R packages and render the Quarto analysis file. 
 
-install.packages(c("DBI", "RSQLite", "nycflights13", "magrittr", "ggplot2")
+```r
+install.packages(c("DBI", "RSQLite", "nycflights13", "magrittr", "ggplot2"))
+```
