@@ -1,0 +1,245 @@
+---
+title: "NYC flights "
+format: html
+editor: visual
+---
+
+## Libraries
+
+```{r}
+library(DBI)
+library(RSQLite)
+library(nycflights13)
+library(magrittr)
+library(ggplot2)
+
+```
+
+## Create Connection
+
+```{r}
+# create connection to the local database 
+con <- dbConnect(SQLite(), "nycflights.sqlite")
+
+# load the tables into the database
+dbWriteTable(con, "flights",  nycflights13::flights,  overwrite = TRUE)
+dbWriteTable(con, "airlines", nycflights13::airlines, overwrite = TRUE)
+dbWriteTable(con, "airports", nycflights13::airports, overwrite = TRUE)
+dbWriteTable(con, "planes",   nycflights13::planes,   overwrite = TRUE)
+dbWriteTable(con, "weather",  nycflights13::weather,  overwrite = TRUE)
+
+```
+
+## Research Question
+
+What factors are associated with departure delays for flights departing from New York City airports in 2013?
+
+## Exploratory Data Analysis
+
+This exploratory data analysis investigates the associations between departure delays and different airports, flight times, airlines, destinations and weather conditions. These descriptive results do not establish causal effects or test statistical significance; they identify patterns for follow up analysis.
+
+**Airports:** Did flights from EWR, JFK, or LGA have different average departure delays?
+
+```{r}
+ origin_plot =  dbGetQuery(con, "
+             SELECT 
+             origin AS Origin,
+             AVG(dep_delay) AS avg_dp_delay
+             FROM flights 
+             GROUP BY origin 
+             ORDER BY AVG(dep_delay) DESC
+             ") %>%
+   ggplot(mapping = aes(x = reorder(Origin, avg_dp_delay), y = avg_dp_delay)) +
+   geom_col() +
+   labs(title = "Average Departure Delay by Origin",
+        x = "Origin Airport",
+        y = "Average Departure Delay (minutes)") + 
+   theme_bw() +
+   geom_text(
+     aes(label = round(avg_dp_delay, 1)),
+     vjust = -0.4,
+     size = 4) +
+   expand_limits(y = 16)
+ 
+ origin_plot
+```
+
+The three New York City airports did have differing average departure delays with EWR having the highest at 15 minutes, followed by JFK's 12 minutes and finally LGA's 10 minutes.
+
+**Timing:** How did delays vary by month and scheduled departure hour?
+
+```{r}
+dbGetQuery(con, "
+           SELECT 
+           month, 
+           AVG(dep_delay) AS avg_dp_delay
+           FROM flights 
+           GROUP BY month 
+           ORDER BY AVG(dep_delay) DESC
+           ")
+
+```
+
+Departure delay does appear to vary by month. June and July have the highest average departure delays of around 21 and 22 minutes respectively and December has the third highest with 17 minutes.
+
+```{r}
+hour_plot = dbGetQuery(con, "
+           SELECT 
+           hour AS departure_hour, 
+           AVG(dep_delay) AS avg_dep_delay, 
+           COUNT(*) AS number_of_flights
+           FROM flights 
+           WHERE hour IS NOT NULL AND dep_delay IS NOT NULL
+           GROUP BY hour 
+           ORDER BY AVG(dep_delay) DESC
+           ") %>% 
+  ggplot(mapping = aes(x = departure_hour, y = avg_dep_delay)) +
+  geom_line() +
+  theme_bw() +
+  labs(title = "Average Departure Delay by Scheduled Hour", 
+       y = "Average Departure Delay (minutes)",
+       x = "Scheduled Departure Hour") +
+  theme_bw()
+
+hour_plot
+```
+
+It does look like average departure delay is highest around 8:00 pm and then tapers off towards both midnight and 5am. Additionally, most flights appear to be in between the hours of 3 pm to 8 pm with another spike from 6 am to around 8 am.
+
+**Airline:** Which airlines had the highest delays? To make this a fair comparison, we will only look at airlines with more than 10,000 flights to reduce smaller airlines with less flights affecting our analysis.
+
+```{r}
+dbGetQuery(con, "
+           SELECT 
+           a.name AS airline,
+           AVG(f.dep_delay) AS avg_dp_delay 
+           FROM flights f 
+           JOIN airlines a 
+           ON f.carrier = a.carrier 
+           GROUP BY a.name 
+           HAVING COUNT(*) >= 10000 
+           ORDER BY AVG(f.dep_delay) DESC
+           ")
+```
+
+Different airlines do appear to have different average delays. The three airlines with the highest average departure delays are ExpressJet with an average of 20 minutes, Southwest with an average of 18 minutes and Endeavor Air with an average of 17 minutes.
+
+**Route:** Which destinations had the highest observed average departure delay?
+
+```{r}
+dbGetQuery(con, "
+           SELECT 
+           dest AS destination, 
+           AVG(dep_delay) AS avg_dep_delay,
+           COUNT(dep_delay) AS flights
+           FROM flights 
+           GROUP BY dest 
+           HAVING COUNT(dep_delay) > 100
+           ORDER BY AVG(dep_delay) DESC
+           LIMIT 5
+           ")
+```
+
+It appears that CAE, TUL and OKC had the highest average departure delays with 36, 35 and 31 minutes respectively.
+
+**Weather:** Were visibility, precipitation, wind, or temperature associated with departure delays?
+
+```{r}
+weather_delays = dbGetQuery(con, "
+                            SELECT 
+                            f.flight,
+                            f.dep_delay, 
+                            w.wind_speed, 
+                            w.precip, 
+                            w.visib, 
+                            w.temp
+                            FROM flights f
+                            JOIN weather w 
+                            ON f.origin = w.origin 
+                            AND f.time_hour = w.time_hour
+                            WHERE f.dep_delay IS NOT NULL
+                            AND w.wind_speed IS NOT NULL
+                            AND w.precip IS NOT NULL
+                            AND w.visib IS NOT NULL
+                            AND w.temp IS NOT NULL
+                            ")
+```
+
+```{r}
+weather_delays %>%
+  ggplot(mapping = aes(x = visib, y = dep_delay)) +
+  geom_bin2d() +
+  labs(title = "Visibility and Departure Delay", 
+       x = "Visibility",
+       y = "Departure Delay (minutes)") +
+  theme_bw()
+```
+
+It appears that there is not any strong association between visibility and departure delay.
+
+```{r}
+weather_delays %>%
+  ggplot(mapping = aes(x = precip, y = dep_delay)) +
+  geom_bin2d() +
+  labs(title = "Precipitation and Departure Delay", 
+       x = "Precipitation (inches)",
+       y = "Departure Delay (minutes)") +
+  theme_bw()
+  
+```
+
+The scatter plot is dominated by flights where there was no precipitation making it irresponsible to draw conclusions from this plot.
+
+```{r}
+weather_delays %>%
+  ggplot(mapping = aes(x = wind_speed, y = dep_delay)) +
+  geom_bin2d() +
+  labs(title = "Wind Speed and Departure Delay", 
+       x = "Wind Speed (mph)",
+       y = "Departure Delay (minutes)") +
+  theme_bw()
+```
+
+There does not appear to be any strong association between wind speed and departure delay.
+
+```{r}
+weather_delays %>%
+  ggplot(mapping = aes(x = temp, y = dep_delay)) +
+  geom_bin2d() +
+  labs(title = "Temperature and Departure Delay", 
+       x = "Temperature (F)",
+       y = "Departure Delay (minutes)") +
+  theme_bw()
+```
+
+There does not appear to be any strong association between temperature and Departure Delay.
+
+Because departure delays vary between EWR, LGA and JFK, later analysis could determine whether the above factors differ within the three airports.
+
+## Disconnect
+
+```{r}
+dbDisconnect(con) 
+```
+
+## Save Plots
+
+```{r}
+ggsave(
+  "output/figures/delay_by_origin.png",
+  origin_plot,
+  width = 7,
+  height = 5,
+  dpi = 300
+)
+
+ggsave(
+  "output/figures/delay_by_hour.png",
+  hour_plot,
+  width = 7,
+  height = 5,
+  dpi = 300
+)
+
+
+```
