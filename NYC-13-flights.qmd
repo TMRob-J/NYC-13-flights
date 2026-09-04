@@ -46,6 +46,7 @@ This exploratory data analysis investigates the associations between departure d
              origin AS Origin,
              AVG(dep_delay) AS avg_dp_delay
              FROM flights 
+             WHERE dep_delay IS NOT NULL
              GROUP BY origin 
              ORDER BY AVG(dep_delay) DESC
              ") %>%
@@ -74,6 +75,7 @@ dbGetQuery(con, "
            month, 
            AVG(dep_delay) AS avg_dp_delay
            FROM flights 
+           WHERE dep_delay IS NOT NULL
            GROUP BY month 
            ORDER BY AVG(dep_delay) DESC
            ")
@@ -91,7 +93,7 @@ hour_plot = dbGetQuery(con, "
            FROM flights 
            WHERE hour IS NOT NULL AND dep_delay IS NOT NULL
            GROUP BY hour 
-           ORDER BY AVG(dep_delay) DESC
+           ORDER BY hour 
            ") %>% 
   ggplot(mapping = aes(x = departure_hour, y = avg_dep_delay)) +
   geom_line() +
@@ -104,7 +106,7 @@ hour_plot = dbGetQuery(con, "
 hour_plot
 ```
 
-It does look like average departure delay is highest around 8:00 pm and then tapers off towards both midnight and 5am. Additionally, most flights appear to be in between the hours of 3 pm to 8 pm with another spike from 6 am to around 8 am.
+Departure delays appeared to vary by scheduled hour. Early-morning flights had the lowest average delays, while flights scheduled around 7:00–9:00 p.m. had the highest.
 
 **Airline:** Which airlines had the highest delays? To make this a fair comparison, we will only look at airlines with more than 10,000 flights to reduce smaller airlines with less flights affecting our analysis.
 
@@ -115,9 +117,10 @@ dbGetQuery(con, "
            AVG(f.dep_delay) AS avg_dp_delay 
            FROM flights f 
            JOIN airlines a 
-           ON f.carrier = a.carrier 
+           ON f.carrier = a.carrier
+           WHERE f.dep_delay IS NOT NULL
            GROUP BY a.name 
-           HAVING COUNT(*) >= 10000 
+           HAVING COUNT(f.dep_delay) >= 10000 
            ORDER BY AVG(f.dep_delay) DESC
            ")
 ```
@@ -133,6 +136,7 @@ dbGetQuery(con, "
            AVG(dep_delay) AS avg_dep_delay,
            COUNT(dep_delay) AS flights
            FROM flights 
+           WHERE dep_delay IS NOT NULL
            GROUP BY dest 
            HAVING COUNT(dep_delay) > 100
            ORDER BY AVG(dep_delay) DESC
@@ -225,6 +229,9 @@ dbDisconnect(con)
 ## Save Plots
 
 ```{r}
+# creates folder for plots
+dir.create("output/figures", recursive = TRUE, showWarnings = FALSE)
+
 ggsave(
   "output/figures/delay_by_origin.png",
   origin_plot,
